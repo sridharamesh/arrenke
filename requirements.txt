@@ -1,0 +1,8 @@
+streamlit
+llama-index-vector-stores-qdrant 
+llama-index-readers-file 
+llama-index-embeddings-fastembed 
+SpeechRecognition==2.1.3
+pyaudio
+gtts
+llama-index-llms-groq
