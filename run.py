@@ -9,7 +9,7 @@ import shutil
 import speech_recognition as sr
 import time
 from datetime import datetime
-import threading
+import base64
 from llama_index.core import (
     VectorStoreIndex,
     SimpleDirectoryReader,
@@ -20,8 +20,6 @@ from llama_index.vector_stores.qdrant import QdrantVectorStore
 from llama_index.embeddings.fastembed import FastEmbedEmbedding
 from llama_index.core.memory import ChatMemoryBuffer
 from llama_index.core.llms import ChatMessage, MessageRole
-
-from audio import play  # Make sure `audio.py` has a working play() function
 
 # Load environment variables
 load_dotenv()
@@ -75,7 +73,7 @@ if uploaded_file and not st.session_state.resume_uploaded:
             You are an interview Q&A assistant. Use the candidate's resume and documents to guide the conversation.
 
             Instructions:
-            - Engage naturally: acknowledge each response in a simple sentence within few words not more than ten words(e.g., "Got it," "Thanks for sharing," "That's helpful").
+            - Engage naturally: acknowledge each response in a simple sentence within few words not more than ten words (e.g., "Got it," "Thanks for sharing," "That's helpful").
             - Keep the tone professional, friendly, and encouraging.
             - Do not repeat or rephrase questions that have already been asked.
             - If the candidate doesn’t respond /
@@ -116,7 +114,7 @@ if uploaded_file and not st.session_state.resume_uploaded:
         except Exception as e:
             st.error(f"Error processing resume: {e}")
 
-# Utility: Text-to-speech with display
+# ✅ Utility: Text-to-speech using embedded base64 autoplay
 def play_tts_with_display(text):
     if not text.strip():
         return False
@@ -128,31 +126,38 @@ def play_tts_with_display(text):
         tts = gTTS(text, slow=False)
         with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
             tts.save(fp.name)
-            play(fp.name)
+            with open(fp.name, "rb") as f:
+                audio_bytes = f.read()
+            b64_audio = base64.b64encode(audio_bytes).decode()
+
+            audio_html = f"""
+            <audio autoplay>
+                <source src="data:audio/mp3;base64,{b64_audio}" type="audio/mp3">
+                Your browser does not support the audio element.
+            </audio>
+            """
+            st.markdown(audio_html, unsafe_allow_html=True)
             os.unlink(fp.name)
     except Exception as e:
         st.error(f"TTS Error: {e}")
         return False
+
     status.empty()
     return True
 
-# Utility: Speech recognition
+# Speech recognition
 def recognize_speech_enhanced():
     r = sr.Recognizer()
- 
-    r.pause_threshold =1.75
-    r.dynamic_energy_threshold = False         
-      
+    r.pause_threshold = 1.75
+    r.dynamic_energy_threshold = False
     status = st.empty()
     try:
         with sr.Microphone() as source:
-            status.info("🎙️ Adjusting for ambient noise. for 1s..")
-            # r.adjust_for_ambient_noise(source, duration=1)
+            status.info("🎙️ Adjusting for ambient noise...")
             status.info("🎤 Vyassa is Listening...")
             audio = r.listen(source)
-            status.info("Moving on to the next question")
+            status.info("⏭️ Moving on to next question...")
             text = r.recognize_groq(audio)
-            
             status.empty()
             return text
     except Exception:
@@ -160,7 +165,7 @@ def recognize_speech_enhanced():
     status.empty()
     return "No response provided"
 
-# Utility: Single interview step
+# Interview step
 def conduct_interview_step(text_to_speak):
     if not text_to_speak.strip():
         return "No question provided"
@@ -172,7 +177,7 @@ def conduct_interview_step(text_to_speak):
     st.session_state.answer_timer_start = None
     return user_input
 
-# Remaining time calculation
+# Remaining time
 def get_remaining_time():
     used_time = st.session_state.total_answer_time
     if st.session_state.answer_timer_start:
@@ -210,7 +215,7 @@ if st.session_state.resume_uploaded and st.session_state.chat_engine and not st.
             st.error(f"Error starting interview: {e}")
             st.session_state.interview_active = False
 
-# Ongoing interview logic
+# Ongoing interview
 elif st.session_state.interview_active and st.session_state.chat_engine:
     remaining_time = get_remaining_time()
 
