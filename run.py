@@ -8,6 +8,7 @@ import tempfile
 import shutil
 import speech_recognition as sr
 import time
+import base64
 from datetime import datetime
 import threading
 from llama_index.core import (
