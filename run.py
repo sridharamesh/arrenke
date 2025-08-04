@@ -140,6 +140,7 @@ def play_tts_with_display(text):
         </audio>
         """
         st.markdown(audio_html, unsafe_allow_html=True)
+        time.sleep(30)
     except Exception as e:
         st.error(f"TTS Error: {e}")
         return False
