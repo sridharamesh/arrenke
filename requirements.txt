@@ -8,3 +8,4 @@ pydub
 python-dotenv
 gtts
 llama-index-llms-groq
+pygame
