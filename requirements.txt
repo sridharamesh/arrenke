@@ -2,7 +2,9 @@ streamlit
 llama-index-vector-stores-qdrant 
 llama-index-readers-file 
 llama-index-embeddings-fastembed 
-SpeechRecognition==2.1.3
+SpeechRecognition
 pyaudio
+pydub
+pytho-dotenv
 gtts
 llama-index-llms-groq
