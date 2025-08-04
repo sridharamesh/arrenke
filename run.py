@@ -9,6 +9,7 @@ import shutil
 import speech_recognition as sr
 import time
 from datetime import datetime
+import base64
 
 from llama_index.core import (
     VectorStoreIndex,
@@ -20,8 +21,6 @@ from llama_index.vector_stores.qdrant import QdrantVectorStore
 from llama_index.embeddings.fastembed import FastEmbedEmbedding
 from llama_index.core.memory import ChatMemoryBuffer
 from llama_index.core.llms import ChatMessage, MessageRole
-
-from audio import play  # Make sure `audio.py` has a working play() function
 
 # Load environment variables
 load_dotenv()
@@ -109,7 +108,7 @@ if uploaded_file and not st.session_state.resume_uploaded:
         except Exception as e:
             st.error(f"Error processing resume: {e}")
 
-# Utility: Text-to-speech with display
+# ✅ Utility: TTS playback via Streamlit audio (Cloud-compatible)
 def play_tts_with_display(text):
     if not text.strip():
         return False
@@ -121,11 +120,20 @@ def play_tts_with_display(text):
         tts = gTTS(text, slow=False)
         with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
             tts.save(fp.name)
-            play(fp.name)
+            with open(fp.name, 'rb') as audio_file:
+                audio_bytes = audio_file.read()
+                st.audio(audio_bytes, format='audio/mp3')
+
+                # Optional: Download link
+                b64 = base64.b64encode(audio_bytes).decode()
+                download_link = f'<a href="data:audio/mp3;base64,{b64}" download="vyassa.mp3">🔊 Download Audio</a>'
+                st.markdown(download_link, unsafe_allow_html=True)
+
             os.unlink(fp.name)
     except Exception as e:
         st.error(f"TTS Error: {e}")
         return False
+
     status.empty()
     return True
 
@@ -133,20 +141,15 @@ def play_tts_with_display(text):
 def recognize_speech_enhanced():
     r = sr.Recognizer()
     r.dynamic_energy_threshold = False  
-
     r.pause_threshold = 1.75
-
 
     status = st.empty()
     try:
         with sr.Microphone() as source:
-            # status.info("🎙️ Adjusting for ambient noise...")
-            # r.adjust_for_ambient_noise(source, duration=1)
             status.info("🎤 Vyassa is Listening...")
             audio = r.listen(source)
             status.info("Moving on to the next question")
             text = r.recognize_groq(audio)
-            
             status.empty()
             return text
     except Exception:
