@@ -9,8 +9,7 @@ import shutil
 import speech_recognition as sr
 import time
 from datetime import datetime
-import base64
-
+import threading
 from llama_index.core import (
     VectorStoreIndex,
     SimpleDirectoryReader,
@@ -22,6 +21,8 @@ from llama_index.embeddings.fastembed import FastEmbedEmbedding
 from llama_index.core.memory import ChatMemoryBuffer
 from llama_index.core.llms import ChatMessage, MessageRole
 
+from audio import play  # Make sure `audio.py` has a working play() function
+
 # Load environment variables
 load_dotenv()
 os.environ["GROQ_API_KEY"] = os.getenv("GROQ_API_KEY")
@@ -32,7 +33,7 @@ Settings.llm = llm
 Settings.embed_model = FastEmbedEmbedding(model_name="BAAI/bge-base-en-v1.5")
 
 # Streamlit setup
-st.set_page_config(page_title="AI Resume Interviewer", layout="centered")
+st.set_page_config(page_title="AI Resume Interviewer")
 st.title("📄 Automated Resume Interview Assistant")
 
 # Default session state
@@ -77,7 +78,14 @@ if uploaded_file and not st.session_state.resume_uploaded:
             - Engage naturally: acknowledge each response in a simple sentence within few words not more than ten words(e.g., "Got it," "Thanks for sharing," "That's helpful").
             - Keep the tone professional, friendly, and encouraging.
             - Do not repeat or rephrase questions that have already been asked.
-            - If the candidate doesn’t respond, gently prompt them once, then continue to the next relevant question without waiting indefinitely.
+            - If the candidate doesn’t respond /
+                gives a negative or unhelpful answer /
+                says “I can’t understand your question” —
+                gently guide them (e.g., rephrase the question / give a small hint).
+                If they still hesitate, say:
+                “Try to answer the question — right or wrong —
+                it will help you understand what you’ve gone through.”
+                Then continue to the next relevant question without waiting too long.
             - Prioritize relevant experience, projects, and skills from the candidate's documents to tailor your questions.
             - Vary your question style: mix technical, behavioral, and situational questions depending on the candidate’s background.
             - Maintain logical flow: ask follow-up questions when appropriate, especially about impactful roles or achievements.
@@ -108,7 +116,7 @@ if uploaded_file and not st.session_state.resume_uploaded:
         except Exception as e:
             st.error(f"Error processing resume: {e}")
 
-# ✅ Utility: TTS playback via Streamlit audio (Cloud-compatible)
+# Utility: Text-to-speech with display
 def play_tts_with_display(text):
     if not text.strip():
         return False
@@ -120,36 +128,31 @@ def play_tts_with_display(text):
         tts = gTTS(text, slow=False)
         with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
             tts.save(fp.name)
-            with open(fp.name, 'rb') as audio_file:
-                audio_bytes = audio_file.read()
-                st.audio(audio_bytes, format='audio/mp3')
-
-                # Optional: Download link
-                b64 = base64.b64encode(audio_bytes).decode()
-                download_link = f'<a href="data:audio/mp3;base64,{b64}" download="vyassa.mp3">🔊 Download Audio</a>'
-                st.markdown(download_link, unsafe_allow_html=True)
-
+            play(fp.name)
             os.unlink(fp.name)
     except Exception as e:
         st.error(f"TTS Error: {e}")
         return False
-
     status.empty()
     return True
 
 # Utility: Speech recognition
 def recognize_speech_enhanced():
     r = sr.Recognizer()
-    r.dynamic_energy_threshold = False  
-    r.pause_threshold = 1.75
-
+ 
+    r.pause_threshold =1.75
+    r.dynamic_energy_threshold = False         
+      
     status = st.empty()
     try:
         with sr.Microphone() as source:
+            status.info("🎙️ Adjusting for ambient noise. for 1s..")
+            # r.adjust_for_ambient_noise(source, duration=1)
             status.info("🎤 Vyassa is Listening...")
             audio = r.listen(source)
             status.info("Moving on to the next question")
             text = r.recognize_groq(audio)
+            
             status.empty()
             return text
     except Exception:
