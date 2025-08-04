@@ -8,4 +8,5 @@ pydub
 python-dotenv
 gtts
 llama-index-llms-groq
-pygame
+streamlit-audiorec==0.1.3
+
