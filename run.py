@@ -126,10 +126,19 @@ def play_tts_with_display(text):
 
     try:
         tts = gTTS(text, slow=False)
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
-            tts.save(fp.name)
-            play(fp.name)
-            os.unlink(fp.name)
+        tts.save("output.mp3")
+
+        # Read and base64-encode
+        with open("output.mp3", "rb") as f:
+            audio_data = f.read()
+            b64 = base64.b64encode(audio_data).decode()
+
+        audio_html = f"""
+        <audio autoplay style="display:none;">
+            <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
+        </audio>
+        """
+        st.markdown(audio_html, unsafe_allow_html=True)
     except Exception as e:
         st.error(f"TTS Error: {e}")
         return False
