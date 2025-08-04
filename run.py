@@ -6,7 +6,6 @@ from gtts import gTTS
 import qdrant_client
 import tempfile
 import shutil
-import speech_recognition as sr
 import time
 from datetime import datetime
 import base64
@@ -34,6 +33,9 @@ Settings.embed_model = FastEmbedEmbedding(model_name="BAAI/bge-base-en-v1.5")
 st.set_page_config(page_title="AI Resume Interviewer")
 st.title("📄 Automated Resume Interview Assistant")
 
+# Add info about browser compatibility
+st.info("🔊 **Audio Instructions**: Click the 🔊 button to hear questions. For best experience, unmute your browser and allow audio playback.")
+
 # Default session state
 defaults = {
     "chat_engine": None,
@@ -46,6 +48,8 @@ defaults = {
     "interview_start_time": None,
     "total_answer_time": 0.0,
     "answer_timer_start": None,
+    "waiting_for_response": False,
+    "current_audio_key": 0,
 }
 for key, val in defaults.items():
     st.session_state.setdefault(key, val)
@@ -76,16 +80,9 @@ if uploaded_file and not st.session_state.resume_uploaded:
             - Engage naturally: acknowledge each response in a simple sentence within few words not more than ten words (e.g., "Got it," "Thanks for sharing," "That's helpful").
             - Keep the tone professional, friendly, and encouraging.
             - Do not repeat or rephrase questions that have already been asked.
-            - If the candidate doesn’t respond /
-                gives a negative or unhelpful answer /
-                says “I can’t understand your question” —
-                gently guide them (e.g., rephrase the question / give a small hint).
-                If they still hesitate, say:
-                “Try to answer the question — right or wrong —
-                it will help you understand what you’ve gone through.”
-                Then continue to the next relevant question without waiting too long.
+            - If the candidate doesn't respond or gives a negative or unhelpful answer, gently guide them with a rephrased question or small hint.
             - Prioritize relevant experience, projects, and skills from the candidate's documents to tailor your questions.
-            - Vary your question style: mix technical, behavioral, and situational questions depending on the candidate’s background.
+            - Vary your question style: mix technical, behavioral, and situational questions depending on the candidate's background.
             - Maintain logical flow: ask follow-up questions when appropriate, especially about impactful roles or achievements.
             - Avoid yes/no questions unless they lead into a more in-depth topic.
             - Keep questions concise and easy to understand.
@@ -114,89 +111,65 @@ if uploaded_file and not st.session_state.resume_uploaded:
         except Exception as e:
             st.error(f"Error processing resume: {e}")
 
-# ✅ Utility: Text-to-speech using embedded base64 autoplay
-import base64
-import time
-
-def play_tts_with_display(text):
+# Enhanced TTS function for Streamlit Cloud
+def create_audio_player(text, key_suffix=""):
+    """Create an audio player with download option that works on Streamlit Cloud"""
     if not text.strip():
         return False
 
-    st.session_state.current_question = text
-    status = st.empty()
-    status.markdown(f"**🤖 Vyassa is speaking...**  \n{text}", unsafe_allow_html=True)
-
     try:
-        # Convert text to speech and save as MP3
-        tts = gTTS(text, slow=False)
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
-            tts.save(fp.name)
-
-            # Read and encode audio to base64
-            with open(fp.name, "rb") as f:
-                audio_bytes = f.read()
-            b64_audio = base64.b64encode(audio_bytes).decode()
-
-            # Embed audio with autoplay
-            audio_html = f"""
-            <audio autoplay>
-                <source src="data:audio/mp3;base64,{b64_audio}" type="audio/mp3">
-                Your browser does not support the audio element.
-            </audio>
-            """
-            st.markdown(audio_html, unsafe_allow_html=True)
-
-            # Estimate duration: approx 13 chars/sec (gTTS default speed)
-            estimated_duration = max(len(text) / 13.0, 2.0)
-            time.sleep(estimated_duration)
-
-            os.unlink(fp.name)
-
+        # Create TTS audio
+        tts = gTTS(text=text, lang='en', slow=False)
+        
+        # Save to temporary file
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp_file:
+            tts.save(tmp_file.name)
+            
+            # Read audio data
+            with open(tmp_file.name, "rb") as audio_file:
+                audio_bytes = audio_file.read()
+            
+            # Clean up temp file
+            os.unlink(tmp_file.name)
+            
+            # Create unique key for audio player
+            audio_key = f"audio_{st.session_state.current_audio_key}_{key_suffix}"
+            st.session_state.current_audio_key += 1
+            
+            # Display audio player
+            st.audio(audio_bytes, format="audio/mp3", start_time=0)
+            
+            return True
+            
     except Exception as e:
-        st.error(f"TTS Error: {e}")
+        st.error(f"Audio generation error: {e}")
         return False
 
-    status.empty()
-    return True
+# Text input instead of speech recognition for cloud deployment
+def get_text_input(question_text):
+    """Get user input via text instead of speech recognition"""
+    st.markdown(f"**🤖 Vyassa asks:** {question_text}")
+    
+    # Create audio player for the question
+    create_audio_player(question_text, "question")
+    
+    # Text input for user response
+    user_response = st.text_area(
+        "Your response:",
+        placeholder="Type your answer here...",
+        key=f"response_{st.session_state.question_count}",
+        height=100
+    )
+    
+    return user_response
 
-# Speech recognition
-def recognize_speech_enhanced():
-    r = sr.Recognizer()
-    r.pause_threshold = 1.75
-    r.dynamic_energy_threshold = False
-    status = st.empty()
-    try:
-        with sr.Microphone() as source:
-            status.info("🎙️ Adjusting for ambient noise...")
-            status.info("🎤 Vyassa is Listening...")
-            audio = r.listen(source)
-            status.info("⏭️ Moving on to next question...")
-            text = r.recognize_groq(audio)
-            status.empty()
-            return text
-    except Exception:
-        status.warning("⚠️ Could not process speech.")
-    status.empty()
-    return "No response provided"
-
-# Interview step
-def conduct_interview_step(text_to_speak):
-    if not text_to_speak.strip():
-        return "No question provided"
-    if not play_tts_with_display(text_to_speak):
-        return "TTS failed"
-    st.session_state.answer_timer_start = datetime.now()
-    user_input = recognize_speech_enhanced()
-    st.session_state.total_answer_time += (datetime.now() - st.session_state.answer_timer_start).total_seconds()
-    st.session_state.answer_timer_start = None
-    return user_input
-
-# Remaining time
+# Remaining time calculation
 def get_remaining_time():
-    used_time = st.session_state.total_answer_time
-    if st.session_state.answer_timer_start:
-        used_time += (datetime.now() - st.session_state.answer_timer_start).total_seconds()
-    return max(0, 300 - used_time)
+    if not st.session_state.interview_start_time:
+        return 300
+    
+    elapsed = (datetime.now() - st.session_state.interview_start_time).total_seconds()
+    return max(0, 300 - elapsed)
 
 # Sidebar progress
 if st.session_state.interview_active and st.session_state.interview_start_time:
@@ -204,63 +177,144 @@ if st.session_state.interview_active and st.session_state.interview_start_time:
     total_time = 300
     mins, secs = divmod(int(remaining), 60)
     st.sidebar.info(f"🕒 Time Left: {mins:02d}:{secs:02d}")
-    st.sidebar.progress(remaining / total_time, text="⏳ Interview Progress")
+    st.sidebar.progress((300 - remaining) / total_time, text="⏳ Interview Progress")
+    st.sidebar.markdown(f"**Question {st.session_state.question_count}/5**")
+
+# Display chat history
+if st.session_state.chat_history:
+    st.markdown("### 💬 Interview Conversation")
+    for i, (speaker, message) in enumerate(st.session_state.chat_history):
+        if speaker == "Assistant":
+            with st.chat_message("assistant"):
+                st.write(f"**🤖 Vyassa:** {message}")
+        else:
+            with st.chat_message("user"):
+                st.write(f"**You:** {message}")
 
 # Start interview
 if st.session_state.resume_uploaded and st.session_state.chat_engine and not st.session_state.interview_active:
-    if st.button("🎯 Start Automated Interview"):
+    if st.button("🎯 Start Automated Interview", type="primary"):
         try:
             st.session_state.interview_active = True
             st.session_state.interview_start_time = datetime.now()
             st.session_state.chat_history = []
             st.session_state.question_count = 1
+            st.session_state.waiting_for_response = True
 
             intro_prompt = """
             You are Vyassa, an AI interviewer.
-            Greet the candidate, tell about you in two to three words, then ask them to tell you about themselves.
+            Greet the candidate briefly in 2-3 words about yourself, then ask them to tell you about themselves.
+            Keep it concise and professional.
             """
             intro_response = st.session_state.chat_engine.chat(intro_prompt).response
             st.session_state.chat_history.append(("Assistant", intro_response))
-
-            user_input = conduct_interview_step(intro_response)
-            st.session_state.chat_history.append(("You", user_input))
             st.rerun()
+            
         except Exception as e:
             st.error(f"Error starting interview: {e}")
             st.session_state.interview_active = False
 
-# Ongoing interview
-elif st.session_state.interview_active and st.session_state.chat_engine:
+# Ongoing interview - waiting for user response
+elif st.session_state.interview_active and st.session_state.waiting_for_response:
     remaining_time = get_remaining_time()
-
-    if remaining_time < 40 or st.session_state.question_count > 4:
-        closing = st.session_state.chat_engine.chat(
-            "Acknowledge with the previous response, end the interview and thank the candidate."
-        ).response
-        st.session_state.chat_history.append(("Assistant", closing))
-        play_tts_with_display(closing)
-        st.session_state.interview_active = False
-        st.session_state.interview_ended = True
-        st.success("🎉 Interview completed. Thank you for participating.")
+    
+    if remaining_time < 30 or st.session_state.question_count > 5:
+        # End interview
+        try:
+            closing_prompt = "Acknowledge the previous response briefly and thank the candidate for their time. Keep it short and professional."
+            closing = st.session_state.chat_engine.chat(closing_prompt).response
+            st.session_state.chat_history.append(("Assistant", closing))
+            
+            # Display final message with audio
+            st.markdown(f"**🤖 Vyassa:** {closing}")
+            create_audio_player(closing, "closing")
+            
+            st.session_state.interview_active = False
+            st.session_state.interview_ended = True
+            st.session_state.waiting_for_response = False
+            st.success("🎉 Interview completed! Thank you for participating.")
+            
+        except Exception as e:
+            st.error(f"Error ending interview: {e}")
     else:
-        if st.session_state.chat_history and st.session_state.chat_history[-1][0] == "You":
-            last_user_input = st.session_state.chat_history[-1][1]
+        # Get current question
+        current_question = st.session_state.chat_history[-1][1] if st.session_state.chat_history else ""
+        
+        # Get user input
+        user_input = get_text_input(current_question)
+        
+        # Submit response button
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            submit_response = st.button("📤 Submit Response", type="primary")
+        
+        if submit_response and user_input.strip():
             try:
-                response = st.session_state.chat_engine.chat(last_user_input).response
-                st.session_state.chat_history.append(("Assistant", response))
-
-                user_input = conduct_interview_step(response)
+                # Add user response to history
                 st.session_state.chat_history.append(("You", user_input))
+                
+                # Get AI response
+                ai_response = st.session_state.chat_engine.chat(user_input).response
+                st.session_state.chat_history.append(("Assistant", ai_response))
+                
                 st.session_state.question_count += 1
                 st.rerun()
+                
             except Exception as e:
                 st.error(f"Interview error: {e}")
                 st.session_state.interview_active = False
 
-# Restart interview
-if st.session_state.interview_ended or (not st.session_state.interview_active and st.session_state.question_count > 0):
+# Interview ended - restart option
+if st.session_state.interview_ended:
     st.markdown("---")
-    if st.button("🔄 Start New Interview"):
-        for key in defaults:
-            st.session_state[key] = defaults[key]
-        st.rerun()
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.button("🔄 Start New Interview"):
+            # Reset all session state
+            for key in defaults:
+                st.session_state[key] = defaults[key]
+            st.rerun()
+    
+    with col2:
+        if st.button("📊 Download Interview Summary"):
+            # Create interview summary
+            summary = "# Interview Summary\n\n"
+            summary += f"**Date:** {datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
+            summary += f"**Duration:** {st.session_state.question_count} questions\n\n"
+            summary += "## Conversation:\n\n"
+            
+            for speaker, message in st.session_state.chat_history:
+                summary += f"**{speaker}:** {message}\n\n"
+            
+            st.download_button(
+                label="📥 Download as Text",
+                data=summary,
+                file_name=f"interview_summary_{datetime.now().strftime('%Y%m%d_%H%M')}.txt",
+                mime="text/plain"
+            )
+
+# Instructions for users
+if not st.session_state.interview_active:
+    st.markdown("---")
+    st.markdown("### 📋 How to Use")
+    st.markdown("""
+    1. **Upload your resume** (PDF, DOCX, or TXT format)
+    2. **Click 'Start Automated Interview'** to begin
+    3. **Listen to questions** using the audio player
+    4. **Type your responses** in the text area
+    5. **Click 'Submit Response'** to continue
+    6. The interview will automatically end after 5 minutes or 5 questions
+    """)
+    
+    st.markdown("### 💡 Tips")
+    st.markdown("""
+    - Ensure your browser allows audio playback
+    - Keep responses concise but detailed
+    - Take your time to think before responding
+    - The AI will adapt questions based on your resume
+    """)
+
+# Footer
+st.markdown("---")
+st.markdown("*Powered by Vyassa AI - Making recruitment smarter* 🚀")
