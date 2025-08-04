@@ -10,7 +10,7 @@ from datetime import datetime
 import base64
 import io
 import speech_recognition as sr
-from audiorec import audiorec  # NEW: browser-based mic input
+from st_audiorec import st_audiorec # NEW: browser-based mic input
 from llama_index.core import (
     VectorStoreIndex,
     SimpleDirectoryReader,
@@ -134,7 +134,7 @@ def play_tts_with_display(text):
 
 # Recognize browser-based audio
 def recognize_speech_from_browser():
-    wav_audio_data = audiorec()
+    wav_audio_data = st_audiorec()
     if wav_audio_data is not None:
         st.audio(wav_audio_data, format='audio/wav')
         with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
