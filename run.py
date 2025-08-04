@@ -134,17 +134,18 @@ def recognize_speech_enhanced():
     r = sr.Recognizer()
     r.dynamic_energy_threshold = False  
 
-    r.pause_threshold = 1.30
+    r.pause_threshold = 1.75
 
 
     status = st.empty()
     try:
         with sr.Microphone() as source:
-            status.info("🎙️ Adjusting for ambient noise...")
-            r.adjust_for_ambient_noise(source, duration=1)
+            # status.info("🎙️ Adjusting for ambient noise...")
+            # r.adjust_for_ambient_noise(source, duration=1)
             status.info("🎤 Vyassa is Listening...")
             audio = r.listen(source)
-            text = r.recognize_google(audio)
+            status.info("Moving on to the next question")
+            text = r.recognize_groq(audio)
             
             status.empty()
             return text
