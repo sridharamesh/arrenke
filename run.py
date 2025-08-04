@@ -115,21 +115,29 @@ if uploaded_file and not st.session_state.resume_uploaded:
             st.error(f"Error processing resume: {e}")
 
 # ✅ Utility: Text-to-speech using embedded base64 autoplay
+import base64
+import time
+
 def play_tts_with_display(text):
     if not text.strip():
         return False
+
     st.session_state.current_question = text
     status = st.empty()
     status.markdown(f"**🤖 Vyassa is speaking...**  \n{text}", unsafe_allow_html=True)
 
     try:
+        # Convert text to speech and save as MP3
         tts = gTTS(text, slow=False)
         with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
             tts.save(fp.name)
+
+            # Read and encode audio to base64
             with open(fp.name, "rb") as f:
                 audio_bytes = f.read()
             b64_audio = base64.b64encode(audio_bytes).decode()
 
+            # Embed audio with autoplay
             audio_html = f"""
             <audio autoplay>
                 <source src="data:audio/mp3;base64,{b64_audio}" type="audio/mp3">
@@ -137,7 +145,13 @@ def play_tts_with_display(text):
             </audio>
             """
             st.markdown(audio_html, unsafe_allow_html=True)
+
+            # Estimate duration: approx 13 chars/sec (gTTS default speed)
+            estimated_duration = max(len(text) / 13.0, 2.0)
+            time.sleep(estimated_duration)
+
             os.unlink(fp.name)
+
     except Exception as e:
         st.error(f"TTS Error: {e}")
         return False
