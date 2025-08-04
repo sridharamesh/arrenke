@@ -5,6 +5,6 @@ llama-index-embeddings-fastembed
 SpeechRecognition
 pyaudio
 pydub
-pytho-dotenv
+python-dotenv
 gtts
 llama-index-llms-groq
