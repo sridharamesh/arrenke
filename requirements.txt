@@ -7,6 +7,6 @@ python-dotenv
 gtts
 llama-index-llms-groq
 audio-recorder-streamlit
-whisper
+git+https://github.com/openai/whisper.git 
 SpeechRecognition
 
