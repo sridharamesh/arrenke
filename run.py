@@ -336,16 +336,6 @@ elif (st.session_state.interview_active and
                     st.error(f"Interview error: {e}")
                     st.session_state.interview_active = False
 
-# Display chat history
-if st.session_state.chat_history:
-    st.markdown("### 💬 Interview Conversation")
-    for speaker, message in st.session_state.chat_history:
-        if speaker == "Assistant":
-            st.markdown(f"**🤖 Vyassa:** {message}")
-        else:
-            st.markdown(f"**👤 You:** {message}")
-    st.markdown("---")
-
 # Restart section
 if st.session_state.interview_ended or (
     not st.session_state.interview_active and st.session_state.question_count > 0):
