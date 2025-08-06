@@ -2,13 +2,10 @@ streamlit
 llama-index-vector-stores-qdrant 
 llama-index-readers-file 
 llama-index-embeddings-fastembed 
-SpeechRecognition
-pyaudio
 pydub
 python-dotenv
 gtts
 llama-index-llms-groq
-streamlit-audiorec
 audio-recorder-streamlit
 openai-whisper
 
