@@ -2,5 +2,4 @@ ffmpeg
 portaudio19-dev
 python3-pyaudio
 python3-dev
-pulseaudio 
-alsa-utils
+
