@@ -298,7 +298,7 @@ elif (st.session_state.interview_active and
                     st.error(f"Interview error: {e}")
                     st.session_state.interview_active = False
 
-# Restart
+# Restar
 if st.session_state.interview_ended or (
     not st.session_state.interview_active and st.session_state.question_count > 0):
     st.markdown("### 🔄 Start Over")
