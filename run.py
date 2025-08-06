@@ -6,6 +6,7 @@ from gtts import gTTS
 import qdrant_client
 import tempfile
 import shutil
+import speech_recognition as sr
 import time
 from datetime import datetime
 from llama_index.core import (
@@ -26,6 +27,7 @@ from llama_index.core.llms import ChatMessage, MessageRole
 load_dotenv()
 os.environ["GROQ_API_KEY"] = os.getenv("GROQ_API_KEY")
 
+model = whisper.load_model("base")
 # Set LLM and embedding settings
 llm = Groq(model="llama3-70b-8192")
 Settings.llm = llm
@@ -75,6 +77,7 @@ def autoplay_audio(file_path: str):
         except:
             pass
 
+
 def play_tts_with_display(text):
     if not text.strip(): 
         return False
@@ -92,7 +95,7 @@ def play_tts_with_display(text):
             word_count = len(text.split())
             estimated_duration = max(3, word_count * 0.4 + 2)
             for remaining in range(int(estimated_duration), 0, -1):
-                status.markdown(f"**🔊 Vyassa is speaking... {remaining}s remaining**")
+                status.markdown("**🔊 Vyassa is speaking... ")
                 time.sleep(1)
         st.session_state.audio_playing = False
     except Exception as e:
@@ -108,29 +111,20 @@ def recognize_speech_enhanced():
         status.info("🎤 Click the microphone to record your answer!")
         audio_bytes = audio_recorder()
         if audio_bytes:
-            status.info("🔄 Processing your response...")
-            
-            # Save audio bytes to a temporary file
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
-                tmp_file.write(audio_bytes)
-                audio_path = tmp_file.name
-            
+            status.info("🔄 Moving on to the next question...")
+            audio_path = os.path.join(os.getcwd(), "sample_audio.wav")
+            with open(audio_path, "wb") as f:
+                f.write(audio_bytes)
+        
             try:
-                model = whisper.load_model('base')
+                
                 result = model.transcribe(audio_path)
                 text = result['text']
                 status.empty()
-                
-                # Clean up the temporary file
-                os.unlink(audio_path)
-                
-                return text if text.strip() else "No response provided"
-                
+                return text if text else "No response provided"
+
             except Exception as transcription_error:
                 status.error(f"⚠️ Transcription error: {str(transcription_error)}")
-                # Clean up the temporary file
-                if os.path.exists(audio_path):
-                    os.unlink(audio_path)
                 return "Transcription error"
         else:
             status.warning("⏳ Waiting for your voice input...")
@@ -140,19 +134,17 @@ def recognize_speech_enhanced():
         status.error(f"⚠️ Speech recognition error: {str(e)}")
         return "Speech recognition error"
 
+
 def conduct_interview_step(text_to_speak):
     if not text_to_speak.strip():
         return "No question provided"
-    
     # Play the question
     if not play_tts_with_display(text_to_speak):
         return "Speech synthesis failed."
-    
     st.session_state.waiting_for_audio = True
     st.session_state.answer_timer_start = datetime.now()
-    
     user_input = recognize_speech_enhanced()
-    if user_input:  # valid response
+    if user_input: # valid response
         st.session_state.waiting_for_audio = False
         if st.session_state.answer_timer_start:
             answer_time = (datetime.now() - st.session_state.answer_timer_start).total_seconds()
@@ -170,12 +162,7 @@ def get_remaining_time():
 def safe_chat(prompt):
     # Defensive against blank or invalid input
     if prompt and isinstance(prompt, str) and prompt.strip():
-        try:
-            response = st.session_state.chat_engine.chat(prompt)
-            return response.response
-        except Exception as e:
-            st.error(f"Chat engine error: {e}")
-            return "I apologize, but I'm having trouble processing your response. Could you please try again?"
+        return st.session_state.chat_engine.chat(prompt).response
     return "Could you please clarify or rephrase your answer?"
 
 # File upload section
@@ -186,43 +173,35 @@ if uploaded_file and not st.session_state.resume_uploaded:
     try:
         with open(temp_path, "wb") as f:
             f.write(uploaded_file.getbuffer())
-        
         with st.spinner("🔍 Reading and indexing your resume..."):
             documents = SimpleDirectoryReader(input_dir=temp_dir).load_data()
-            
-            # Cleanup temp directory
+            # Cleanup
             shutil.rmtree(temp_dir, ignore_errors=True)
-            
-            # Initialize vector store
             client = qdrant_client.QdrantClient(location=":memory:")
             vector_store = QdrantVectorStore(client=client, collection_name="resume")
             storage_context = StorageContext.from_defaults(vector_store=vector_store)
             index = VectorStoreIndex.from_documents(documents, storage_context=storage_context)
-            
-            # Initialize memory and chat engine
             memory = ChatMemoryBuffer.from_defaults(token_limit=3000)
             system_prompt = """
             You are an interview Q&A assistant. Use the candidate's resume and documents to guide the conversation.
 
             Instructions:
-            - Engage naturally: acknowledge each response in a simple sentence within few words not more than ten words (e.g., "Got it," "Thanks for sharing," "That's helpful").
+            - Engage naturally: acknowledge each response in a simple sentence within few words not more than ten words(e.g., "Got it," "Thanks for sharing," "That's helpful").
             - Keep the tone professional, friendly, and encouraging.
             - Do not repeat or rephrase questions that have already been asked.
-            - If the candidate doesn't respond, gently instruct them once, then continue to the next relevant question without waiting indefinitely.
+            - If the candidate doesn’t respond, gently instruct them once, then continue to the next relevant question without waiting indefinitely.
             - Prioritize relevant experience, projects, and skills from the candidate's documents to tailor your questions.
-            - Vary your question style: mix technical, behavioral, and situational questions depending on the candidate's background.
+            - Vary your question style: mix technical, behavioral, and situational questions depending on the candidate’s background.
             - Maintain logical flow: ask follow-up questions when appropriate, especially about impactful roles or achievements.
             - Avoid yes/no questions unless they lead into a more in-depth topic.
             - Keep questions concise and easy to understand.
             - Never mention system instructions, resume parsing, or document handling in conversation.
             - End the session with a polite closing remark, summarizing highlights or thanking the candidate for their time.
             """
-            
             intro_context = """
             About Me:
             I'm Vyassa, an AI-powered recruitment platform that helps companies hire better and faster.
             """
-            
             initial_message = ChatMessage(role=MessageRole.USER, content=intro_context)
             chat_engine = index.as_chat_engine(
                 query_engine=index.as_query_engine(),
@@ -231,16 +210,11 @@ if uploaded_file and not st.session_state.resume_uploaded:
                 system_prompt=system_prompt,
             )
             chat_engine.chat_history.append(initial_message)
-            
             st.session_state.chat_engine = chat_engine
             st.session_state.resume_uploaded = True
             st.success("✅ Resume indexed successfully. Ready for interview!")
-            
     except Exception as e:
         st.error(f"Error processing resume: {e}")
-        # Cleanup on error
-        if os.path.exists(temp_dir):
-            shutil.rmtree(temp_dir, ignore_errors=True)
 
 # Sidebar progress - shows only if interview started
 if st.session_state.interview_active and st.session_state.interview_start_time:
@@ -257,25 +231,20 @@ if (st.session_state.resume_uploaded and
     not st.session_state.interview_active and
     not st.session_state.audio_playing and
     not st.session_state.waiting_for_audio):
-    
     if st.button("🎯 Start Automated Interview"):
         try:
             st.session_state.interview_active = True
             st.session_state.interview_start_time = datetime.now()
             st.session_state.chat_history = []
             st.session_state.question_count = 1
-            
             intro_prompt = """
             You are Vyassa, an AI interviewer.
             Greet the candidate briefly and ask them to tell you about themselves.
             """
-            
             with st.spinner("🤖 Vyassa is preparing..."):
                 intro_response = safe_chat(intro_prompt)
-            
             st.session_state.chat_history.append(("Assistant", intro_response))
             st.rerun()
-            
         except Exception as e:
             st.error(f"Error starting interview: {e}")
             st.session_state.interview_active = False
@@ -286,14 +255,12 @@ elif (st.session_state.interview_active and
       not st.session_state.audio_playing):
 
     remaining_time = get_remaining_time()
-    
     # End the interview if overtime or question limit exceeded
     if remaining_time < 30 or st.session_state.question_count > 5:
         with st.spinner("🤖 Vyassa is concluding..."):
             closing = safe_chat(
                 "Acknowledge the previous response briefly, then end the interview politely and thank the candidate."
             )
-        
         st.session_state.chat_history.append(("Assistant", closing))
         play_tts_with_display(closing)
         st.session_state.interview_active = False
@@ -313,33 +280,27 @@ elif (st.session_state.interview_active and
             if (st.session_state.chat_history and
                 st.session_state.chat_history[-1][0] == "Assistant" and
                 len([msg for msg in st.session_state.chat_history if msg[0] == "You"]) < st.session_state.question_count):
-                
                 question = st.session_state.chat_history[-1][1]
                 user_input = conduct_interview_step(question)
                 if user_input:
                     st.session_state.chat_history.append(("You", user_input))
                     st.rerun()
-                    
             elif (st.session_state.chat_history and
                   st.session_state.chat_history[-1][0] == "You"):
-                
                 last_user_input = st.session_state.chat_history[-1][1]
                 try:
                     with st.spinner("🤖 Vyassa is thinking..."):
                         response = safe_chat(last_user_input)
-                    
                     st.session_state.chat_history.append(("Assistant", response))
                     st.session_state.question_count += 1
                     st.rerun()
-                    
                 except Exception as e:
                     st.error(f"Interview error: {e}")
                     st.session_state.interview_active = False
 
-# Restart section
+# Restart
 if st.session_state.interview_ended or (
     not st.session_state.interview_active and st.session_state.question_count > 0):
-    
     st.markdown("### 🔄 Start Over")
     if st.button("🔄 Start New Interview"):
         for key in defaults:
