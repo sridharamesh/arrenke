@@ -9,5 +9,5 @@ python-dotenv
 gtts
 llama-index-llms-groq
 streamlit-audiorec
-
+whisper
 
