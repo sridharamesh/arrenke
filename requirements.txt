@@ -11,4 +11,5 @@ llama-index-llms-groq
 streamlit-audiorec
 whisper
 audio-recorder-streamlit
+openai-whisper
 
