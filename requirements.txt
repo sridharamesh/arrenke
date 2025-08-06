@@ -8,3 +8,4 @@ gtts
 llama-index-llms-groq
 audio-recorder-streamlit
 whisper
+speech_recognition
