@@ -26,7 +26,7 @@ from llama_index.core.llms import ChatMessage, MessageRole
 load_dotenv()
 os.environ["GROQ_API_KEY"] = os.getenv("GROQ_API_KEY")
 
-model = whisper.load_model("base")
+
 # Set LLM and embedding settings
 llm = Groq(model="llama3-70b-8192")
 Settings.llm = llm
