@@ -14,7 +14,7 @@ from llama_index.core import (
     Settings,
     StorageContext
 )
-
+import whisper
 import base64
 from audio_recorder_streamlit import audio_recorder
 from llama_index.vector_stores.qdrant import QdrantVectorStore
@@ -112,25 +112,11 @@ def recognize_speech_enhanced():
         if audio_bytes:
             status.info("🔄 Moving on to the next question...")
             audio_path = os.path.join(os.getcwd(), "sample_audio.wav")
-            with open(audio_path, "wb") as f:
-                f.write(audio_bytes)
-        
-            try:
-                api_key = os.getenv("GROQ_API_KEY")
-                client = Groq(api_key=api_key)  # <-- Replace this with your actual API key
-                with open(audio_path, "rb") as file:
-                        transcription = client.audio.transcriptions.create(
-                      file=file, # Required audio file
-                      model="whisper-large-v3-turbo", # Required model to use for transcription
-                      prompt="Specify context or spelling",  # Optional
-                      response_format="verbose_json",  # Optional
-                      timestamp_granularities = ["word", "segment"], # Optional (must set response_format to "json" to use and can specify "word", "segment" (default), or both)
-                      language="en",  # Optional
-                      temperature=0.0  # Optional
-                    )
-                text = transcription.text
-                status.empty()
-                return text if text else "No response provided"
+            model = whisper.load_model('base')
+            result = model.transcribe(audio_path)
+            text = result['text']
+            status.empty()
+            return text if text else "No response provided"
 
             except Exception as transcription_error:
                 status.error(f"⚠️ Transcription error: {str(transcription_error)}")
