@@ -6,7 +6,6 @@ from gtts import gTTS
 import qdrant_client
 import tempfile
 import shutil
-import speech_recognition as sr
 import time
 from datetime import datetime
 from llama_index.core import (
