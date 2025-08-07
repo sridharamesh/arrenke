@@ -150,7 +150,7 @@ def recognize_speech_enhanced():
                 with sr.AudioFile(io.BytesIO(audio_bytes)) as source:
                     audio_data = r.record(source)
 
-                text = r.recognize_google(audio_data)
+                text = r.recognize_groq(audio_data)
                 
                 # Clean up the audio file
                 try:
