@@ -99,7 +99,7 @@ def play_tts_with_display(text):
             word_count = len(text.split())
             estimated_duration = max(3, word_count * 0.4 + 2)
             for remaining in range(int(estimated_duration), 0, -1):
-                status.markdown(f"** 🔊 Vyassa is speaking... ** ")
+                status.markdown(f"** 🔊 Vyassa is speaking...  ")
                 time.sleep(1)
         
         st.session_state.audio_playing = False
@@ -132,12 +132,11 @@ def recognize_speech_enhanced():
     
     with col2:
         if st.button("Skip Question", key=f"skip_{st.session_state.current_audio_key}"):
-            st.session_state.current_audio_key += 1
             return "Question skipped by user"
     
     if audio_bytes:
         # Show processing status
-        with st.spinner("🔄 Processing your audio..."):
+        with st.spinner("🔄 Moving on to the next question..."):
             try:
                 # Save the audio file
                 audio_path = os.path.join(os.getcwd(), f"audio_{st.session_state.current_audio_key}.wav")
@@ -160,7 +159,6 @@ def recognize_speech_enhanced():
                     pass
                 
                 if text:
-                    st.success(f"✅ Recorded: {text}")
                     st.session_state.current_audio_key += 1
                     return text
                 else:
