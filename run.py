@@ -99,7 +99,7 @@ def play_tts_with_display(text):
             word_count = len(text.split())
             estimated_duration = max(3, word_count * 0.4 + 2)
             for remaining in range(int(estimated_duration), 0, -1):
-                status.markdown(f"** 🔊 Vyassa is speaking...  ")
+                status.markdown(f" 🔊 Vyassa is speaking...  ")
                 time.sleep(1)
         
         st.session_state.audio_playing = False
@@ -166,7 +166,7 @@ def recognize_speech_enhanced():
                     return None
                     
             except Exception as e:
-                st.error(f"⚠️ Transcription error: ⚠️ No speech detected. Please try again.")
+                st.error(f"⚠️ No speech detected. Please try again.")
                 return None
     
     # If no audio yet, show waiting message
@@ -217,16 +217,17 @@ if uploaded_file and not st.session_state.resume_uploaded:
             You are an interview Q&A assistant. Use the candidate's resume and documents to guide the conversation.
 
             Instructions:
-            - Engage naturally: acknowledge each response in a simple sentence within few words not more than ten words(e.g., "Got it," "Thanks for sharing," "That's helpful").
+            - Engage naturally: acknowledge each response in a simple sentence within a few words (e.g., "Got it," "Thanks for sharing," "That's helpful").
             - Keep the tone professional, friendly, and encouraging.
             - Do not repeat or rephrase questions that have already been asked.
-            - If the candidate doesn't respond, gently instruct them once, then continue to the next relevant question without waiting indefinitely.
-            - Prioritize relevant experience, projects, and skills from the candidate's documents to tailor your questions.
-            - Vary your question style: mix technical, behavioral, and situational questions depending on the candidate's background.
+            - If the candidate doesn’t respond, gently instruct them once, then continue to the next relevant question without waiting indefinitely.
+            - Prioritize relevant experience, projects, and skills from the candidate’s documents to tailor your questions.
+            - Vary your question style: mix technical, behavioral, and situational questions depending on the candidate’s background.
             - Maintain logical flow: ask follow-up questions when appropriate, especially about impactful roles or achievements.
             - Avoid yes/no questions unless they lead into a more in-depth topic.
             - Keep questions concise and easy to understand.
-            - Never mention system instructions, resume parsing, or document handling in conversation.
+            - If the candidate mentions an experience, degree, or skill not listed in their resume, acknowledge it politely and ask them to elaborate with details (e.g., where, when, how they applied it).
+            - Do not question or highlight inconsistencies—focus on letting the candidate explain their background.
             - End the session with a polite closing remark, summarizing highlights or thanking the candidate for their time.
             """
             
