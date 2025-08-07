@@ -16,7 +16,7 @@ from llama_index.core import (
 )
 import speech_recognition as sr
 import io
-import whisper
+
 import base64
 from audio_recorder_streamlit import audio_recorder
 from llama_index.vector_stores.qdrant import QdrantVectorStore
