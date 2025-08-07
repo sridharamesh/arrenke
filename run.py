@@ -290,6 +290,7 @@ if (st.session_state.resume_uploaded and
             
             with st.spinner("🤖 Vyassa is preparing..."):
                 intro_response = safe_chat(intro_prompt)
+                time.sleep(2)
             
             st.session_state.chat_history.append(("Assistant", intro_response))
             
